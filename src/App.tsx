@@ -2,54 +2,81 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
 
-const USERNAME = 'attila'
-const PASSWORD = 'dashboard2026'
+const users = [
+  { username: 'VBGABESZ', password: 'admin' },
+  { username: 'DMIHOLICS', password: 'admin' },
+  { username: 'TVBARBARA', password: 'admin' },
+  { username: 'TTOROK', password: 'admin' },
+]
 
 type ChartConfig = {
   title: string
   label: string
-  symbol: string
-  interval?: string
   sourceUrl: string
+  kind: 'tradingview' | 'iframe'
+  symbol?: string
+  interval?: string
+  iframeUrl?: string
 }
 
 const charts: ChartConfig[] = [
   {
     title: 'EUR/HUF',
     label: 'Euro / forint',
+    kind: 'tradingview',
     symbol: 'OANDA:EURHUF',
     sourceUrl: 'https://olajar.hu/EUR-HUF-arfolyam.html',
   },
   {
     title: 'USD/HUF',
     label: 'Dollár / forint',
+    kind: 'tradingview',
     symbol: 'OANDA:USDHUF',
     sourceUrl: 'https://olajar.hu/USD-HUF-arfolyam.html',
   },
   {
     title: 'Földgáz / TTF',
-    label: 'Holland TTF gáz',
-    symbol: 'NYMEX:TTF1!',
-    sourceUrl: 'https://olajar.hu/gaz-ar.html',
+    label: 'Európai gázár',
+    kind: 'tradingview',
+    symbol: 'ICEEUR:TFM1!',
+    sourceUrl: 'https://www.tradingview.com/symbols/ICEEUR-TFM1!/',
+  },
+  {
+    title: 'Földgáz / Henry Hub',
+    label: 'Alternatív gázár',
+    kind: 'tradingview',
+    symbol: 'NYMEX:NG1!',
+    sourceUrl: 'https://www.tradingview.com/symbols/NYMEX-NG1!/',
+  },
+  {
+    title: 'KYOS gázpiaci oldal',
+    label: 'Külső gázpiaci grafikon',
+    kind: 'iframe',
+    iframeUrl:
+      'https://gas.kyos.com/?gclid=EAIaIQobChMIvrTXvoeF9gIVjuJ3Ch3D5ABcEAMYASAAEgJwK_D_BwE&fbclid=IwAR0KU16EzXwNyCk2jK49ueBuJfAgld7ObPLJqMCtyBnAshii9ticOmdo-BY',
+    sourceUrl:
+      'https://gas.kyos.com/?gclid=EAIaIQobChMIvrTXvoeF9gIVjuJ3Ch3D5ABcEAMYASAAEgJwK_D_BwE&fbclid=IwAR0KU16EzXwNyCk2jK49ueBuJfAgld7ObPLJqMCtyBnAshii9ticOmdo-BY',
   },
   {
     title: 'Brent olaj',
     label: 'Kőolaj világpiaci ár',
+    kind: 'tradingview',
     symbol: 'TVC:UKOIL',
     sourceUrl: 'https://olajar.hu/index.html',
   },
   {
     title: 'Arany',
     label: 'Befektetési arany',
+    kind: 'tradingview',
     symbol: 'TVC:GOLD',
     sourceUrl: 'https://olajar.hu/arany-arfolyam.html',
   },
   {
     title: 'Magyar infláció',
-    label: 'Inflációs adat',
-    symbol: 'ECONOMICS:HUIRYY',
-    interval: 'M',
-    sourceUrl: 'https://olajar.hu/magyar-inflacio.html',
+    label: 'KSH inflációs radar',
+    kind: 'iframe',
+    iframeUrl: 'https://www.ksh.gov.hu/interaktiv/fogyar_radar/index.html',
+    sourceUrl: 'https://www.ksh.gov.hu/interaktiv/fogyar_radar/index.html',
   },
 ]
 
@@ -66,7 +93,7 @@ function TradingViewChart({ chart }: { chart: ChartConfig }) {
     script.async = true
     script.innerHTML = JSON.stringify({
       autosize: true,
-      symbol: chart.symbol,
+      symbol: chart.symbol ?? 'OANDA:EURHUF',
       interval: chart.interval ?? '60',
       timezone: 'Europe/Budapest',
       theme: 'dark',
@@ -83,8 +110,42 @@ function TradingViewChart({ chart }: { chart: ChartConfig }) {
   return <div className="tradingview-widget-container" ref={container} />
 }
 
+function IframeChart({ chart }: { chart: ChartConfig }) {
+  return (
+    <iframe
+      className="external-chart"
+      src={chart.iframeUrl}
+      title={chart.title}
+      loading="lazy"
+      referrerPolicy="no-referrer-when-downgrade"
+    />
+  )
+}
+
+function ChartCard({ chart }: { chart: ChartConfig }) {
+  return (
+    <article className={`chart-panel chart-panel-${chart.kind}`}>
+      <div className="panel-header">
+        <div>
+          <p className="eyebrow">{chart.label}</p>
+          <h2>{chart.title}</h2>
+        </div>
+
+        <a href={chart.sourceUrl} target="_blank" rel="noreferrer">
+          Forrás
+        </a>
+      </div>
+
+      <div className="chart-frame">
+        {chart.kind === 'iframe' ? <IframeChart chart={chart} /> : <TradingViewChart chart={chart} />}
+      </div>
+    </article>
+  )
+}
+
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [activeUser, setActiveUser] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -92,8 +153,14 @@ function App() {
   function handleLogin(event: FormEvent) {
     event.preventDefault()
 
-    if (username === USERNAME && password === PASSWORD) {
+    const normalizedUsername = username.trim().toUpperCase()
+    const user = users.find(
+      (candidate) => candidate.username === normalizedUsername && candidate.password === password,
+    )
+
+    if (user) {
       setIsLoggedIn(true)
+      setActiveUser(user.username)
       setError('')
       return
     }
@@ -144,31 +211,24 @@ function App() {
         <div>
           <p className="eyebrow">Private Dashboard</p>
           <h1>Pénzügyi áttekintő</h1>
+          <p className="dashboard-user">Belépve: {activeUser}</p>
         </div>
 
-        <button className="logout-button" onClick={() => setIsLoggedIn(false)}>
+        <button
+          className="logout-button"
+          onClick={() => {
+            setIsLoggedIn(false)
+            setActiveUser('')
+            setPassword('')
+          }}
+        >
           Kilépés
         </button>
       </header>
 
       <section className="market-grid">
         {charts.map((chart) => (
-          <article className="chart-panel" key={chart.symbol}>
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">{chart.label}</p>
-                <h2>{chart.title}</h2>
-              </div>
-
-              <a href={chart.sourceUrl} target="_blank" rel="noreferrer">
-                Forrás
-              </a>
-            </div>
-
-            <div className="chart-frame">
-              <TradingViewChart chart={chart} />
-            </div>
-          </article>
+          <ChartCard chart={chart} key={`${chart.kind}-${chart.title}`} />
         ))}
       </section>
     </main>
